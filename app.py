@@ -66,9 +66,13 @@ def version_check():
 @app.route("/download", methods=["GET", "POST"])
 @app.route("/api/download", methods=["GET", "POST"])
 @app.route("/payload", methods=["GET", "POST"])
-def download_file():
-    dummy_payload = b"PK\x03\x04" + b"\x14\x00\x08\x00\x08\x00" + b"\x00" * 2000
-    return Response(dummy_payload, mimetype="application/vnd.android.package-archive")
+@app.route("/files/<path:filename>", methods=["GET", "POST"])
+def download_file(filename=None):
+    # Generates a solid 5MB dummy binary chunk with standard APK header
+    dummy_payload = b"PK\x03\x04" + b"\x14\x00\x08\x00\x08\x00" + b"\x00" * (5 * 1024 * 1024)
+    response = Response(dummy_payload, mimetype="application/vnd.android.package-archive")
+    response.headers["Content-Length"] = str(len(dummy_payload))
+    return response
 
 @app.route("/api/login", methods=["POST"])
 def login():
