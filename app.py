@@ -2,21 +2,16 @@ import os
 import json
 import time
 import uuid
-from flask import Flask, request, jsonify, session
-from werkzeug.middleware.proxy_fix import ProxyFix
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-# Render proxy ko handle karne ke liye ProxyFix zaroori hai
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
-
-app.secret_key = os.environ.get("SECRET_KEY", "flaxxi_store_secure_secret_key_2026")
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = True  # Render HTTPS par chalta hai
 
 DATA_FILE = "licenses.json"
 
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "flaxxi123")
+
+ACTIVE_TOKENS = set()
 
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -36,37 +31,40 @@ def index():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-@app.route("/api/session", methods=["GET", "POST", "DELETE"])
-def manage_session():
-    if request.method == "GET":
-        is_owner = session.get("owner", False)
-        if "csrf" not in session:
-            session["csrf"] = uuid.uuid4().hex
-        return jsonify({"owner": is_owner, "csrf": session["csrf"]})
+@app.route("/api/login", methods=["POST"])
+def login():
+    req_data = request.get_json() or {}
+    username = req_data.get("username")
+    password = req_data.get("password")
+    
+    if username == ADMIN_USER and password == ADMIN_PASS:
+        token = uuid.uuid4().hex
+        ACTIVE_TOKENS.add(token)
+        return jsonify({"success": True, "token": token})
+    else:
+        return jsonify({"error": "Invalid username or password."}), 401
 
-    elif request.method == "POST":
-        req_data = request.get_json() or {}
-        username = req_data.get("username")
-        password = req_data.get("password")
-        
-        if username == ADMIN_USER and password == ADMIN_PASS:
-            session["owner"] = True
-            if "csrf" not in session:
-                session["csrf"] = uuid.uuid4().hex
-            return jsonify({"success": True, "csrf": session["csrf"]})
-        else:
-            return jsonify({"error": "Invalid username or password."}), 401
+@app.route("/api/verify", methods=["POST"])
+def verify_token():
+    req_data = request.get_json() or {}
+    token = req_data.get("token")
+    if token and token in ACTIVE_TOKENS:
+        return jsonify({"owner": True})
+    return jsonify({"owner": False})
 
-    elif request.method == "DELETE":
-        session.pop("owner", None)
-        return jsonify({"success": True})
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    req_data = request.get_json() or {}
+    token = req_data.get("token")
+    if token in ACTIVE_TOKENS:
+        ACTIVE_TOKENS.remove(token)
+    return jsonify({"success": True})
 
 @app.route("/api/keys", methods=["GET", "POST"])
 def manage_keys():
-    if request.method == "POST":
-        client_csrf = request.headers.get("X-CSRF-Token")
-        if not client_csrf or client_csrf != session.get("csrf"):
-            return jsonify({"error": "Invalid CSRF token."}), 403
+    token = request.headers.get("X-Token")
+    if not token or token not in ACTIVE_TOKENS:
+        return jsonify({"error": "Unauthorized access."}), 403
 
     data = load_data()
 
@@ -110,9 +108,9 @@ def manage_keys():
 
 @app.route("/api/keys/<path:key_id>", methods=["POST", "DELETE"])
 def modify_key(key_id):
-    client_csrf = request.headers.get("X-CSRF-Token")
-    if not client_csrf or client_csrf != session.get("csrf"):
-        return jsonify({"error": "Invalid CSRF token."}), 403
+    token = request.headers.get("X-Token")
+    if not token or token not in ACTIVE_TOKENS:
+        return jsonify({"error": "Unauthorized access."}), 403
 
     data = load_data()
     key_obj = None
