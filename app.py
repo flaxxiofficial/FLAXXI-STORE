@@ -2,14 +2,19 @@ import os
 import json
 import time
 import uuid
-from flask import Flask, request, jsonify, render_template_string, session
+from flask import Flask, request, jsonify, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
+# Render proxy ko handle karne ke liye ProxyFix zaroori hai
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
 app.secret_key = os.environ.get("SECRET_KEY", "flaxxi_store_secure_secret_key_2026")
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = True  # Render HTTPS par chalta hai
 
 DATA_FILE = "licenses.json"
 
-# Default admin credentials (aap ise Render environment variables se bhi change kar sakte hain)
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "flaxxi123")
 
@@ -28,7 +33,6 @@ def save_data(data):
 
 @app.route("/")
 def index():
-    # Frontend HTML code ko direct serve karne ke liye ya template folder me rakhne ke liye
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
@@ -36,7 +40,6 @@ def index():
 def manage_session():
     if request.method == "GET":
         is_owner = session.get("owner", False)
-        # CSRF token generate karte hain
         if "csrf" not in session:
             session["csrf"] = uuid.uuid4().hex
         return jsonify({"owner": is_owner, "csrf": session["csrf"]})
@@ -60,7 +63,6 @@ def manage_session():
 
 @app.route("/api/keys", methods=["GET", "POST"])
 def manage_keys():
-    # Check CSRF header for mutating requests
     if request.method == "POST":
         client_csrf = request.headers.get("X-CSRF-Token")
         if not client_csrf or client_csrf != session.get("csrf"):
@@ -69,7 +71,6 @@ def manage_keys():
     data = load_data()
 
     if request.method == "GET":
-        # Return all keys sorted or filtered if needed
         return jsonify({"keys": data["keys"]})
 
     elif request.method == "POST":
@@ -80,15 +81,12 @@ def manage_keys():
         days = int(req_data.get("days", 30))
         device_limit = int(req_data.get("device_limit", 1))
 
-        # Key generation logic
         if mode == "custom" and custom_key:
             key_id = custom_key.strip()
         else:
-            # Fallback random generator if needed
             rand_part = uuid.uuid4().hex[:8].upper()
             key_id = f"FLAXXI-{rand_part}"
 
-        # Check if key already exists
         for k in data["keys"]:
             if k["id"] == key_id:
                 return jsonify({"error": "This key already exists."}), 400
@@ -150,7 +148,6 @@ def modify_key(key_id):
         save_data(data)
         return jsonify({"success": True, "key": key_obj})
 
-# Android App Validation Endpoint (Aapke app ke liye integration)
 @app.route("/api/validate", methods=["POST"])
 def validate_license():
     req_data = request.get_json() or {}
@@ -173,7 +170,6 @@ def validate_license():
     if key_obj["expires"] <= time.time():
         return jsonify({"valid": False, "message": "License has expired."}), 403
 
-    # Device binding check
     if device_id not in key_obj["bound_devices"]:
         if len(key_obj["bound_devices"]) >= key_obj["device_limit"]:
             return jsonify({"valid": False, "message": "Device limit reached for this key."}), 403
