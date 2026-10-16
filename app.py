@@ -7,11 +7,23 @@ from flask import Flask, request, jsonify
 app = Flask(__name__)
 
 DATA_FILE = "licenses.json"
+TOKEN_FILE = "tokens.json"
 
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "flaxxi123")
 
-ACTIVE_TOKENS = set()
+def load_tokens():
+    if not os.path.exists(TOKEN_FILE):
+        return {"tokens": []}
+    try:
+        with open(TOKEN_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {"tokens": []}
+
+def save_tokens(data):
+    with open(TOKEN_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -57,7 +69,10 @@ def login():
     
     if username == ADMIN_USER and password == ADMIN_PASS:
         token = uuid.uuid4().hex
-        ACTIVE_TOKENS.add(token)
+        t_data = load_tokens()
+        if token not in t_data["tokens"]:
+            t_data["tokens"].append(token)
+            save_tokens(t_data)
         return jsonify({"success": True, "token": token})
     else:
         return jsonify({"error": "Invalid username or password."}), 401
@@ -66,7 +81,8 @@ def login():
 def verify_token():
     req_data = request.get_json() or {}
     token = req_data.get("token")
-    if token and token in ACTIVE_TOKENS:
+    t_data = load_tokens()
+    if token and token in t_data["tokens"]:
         return jsonify({"owner": True})
     return jsonify({"owner": False})
 
@@ -74,14 +90,17 @@ def verify_token():
 def logout():
     req_data = request.get_json() or {}
     token = req_data.get("token")
-    if token in ACTIVE_TOKENS:
-        ACTIVE_TOKENS.remove(token)
+    t_data = load_tokens()
+    if token in t_data["tokens"]:
+        t_data["tokens"].remove(token)
+        save_tokens(t_data)
     return jsonify({"success": True})
 
 @app.route("/api/keys", methods=["GET", "POST"])
 def manage_keys():
     token = request.headers.get("X-Token")
-    if not token or token not in ACTIVE_TOKENS:
+    t_data = load_tokens()
+    if not token or token not in t_data["tokens"]:
         return jsonify({"error": "Unauthorized access."}), 403
 
     data = load_data()
@@ -127,7 +146,8 @@ def manage_keys():
 @app.route("/api/keys/<path:key_id>", methods=["POST", "DELETE"])
 def modify_key(key_id):
     token = request.headers.get("X-Token")
-    if not token or token not in ACTIVE_TOKENS:
+    t_data = load_tokens()
+    if not token or token not in t_data["tokens"]:
         return jsonify({"error": "Unauthorized access."}), 403
 
     data = load_data()
