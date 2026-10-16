@@ -67,7 +67,6 @@ def version_check():
 @app.route("/api/download", methods=["GET", "POST"])
 @app.route("/payload", methods=["GET", "POST"])
 def download_file():
-    # Valid ZIP/APK structure header to satisfy integrity checks
     dummy_payload = b"PK\x03\x04" + b"\x14\x00\x08\x00\x08\x00" + b"\x00" * 2000
     return Response(dummy_payload, mimetype="application/vnd.android.package-archive")
 
@@ -158,7 +157,7 @@ def modify_key(key_id):
     token = request.headers.get("X-Token")
     t_data = load_tokens()
     if not token or token not in t_data["tokens"]:
-    return jsonify({"error": "Unauthorized access."}), 403
+        return jsonify({"error": "Unauthorized access."}), 403
 
     data = load_data()
     key_obj = None
