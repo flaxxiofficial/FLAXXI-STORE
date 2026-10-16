@@ -39,12 +39,14 @@ def diagnostics():
         "message": "Server is up and operational."
     })
 
-@app.route("/api/version", methods=["GET"])
+@app.route("/api/version", methods=["GET", "POST"])
+@app.route("/api/update", methods=["GET", "POST"])
 def version_check():
     return jsonify({
         "latest_version": "1.8",
         "update_available": False,
-        "url": ""
+        "url": "",
+        "status": "success"
     })
 
 @app.route("/api/login", methods=["POST"])
