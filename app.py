@@ -31,6 +31,22 @@ def index():
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
+@app.route("/api/diagnostics", methods=["GET", "POST"])
+def diagnostics():
+    return jsonify({
+        "status": "online",
+        "version": "1.8",
+        "message": "Server is up and operational."
+    })
+
+@app.route("/api/version", methods=["GET"])
+def version_check():
+    return jsonify({
+        "latest_version": "1.8",
+        "update_available": False,
+        "url": ""
+    })
+
 @app.route("/api/login", methods=["POST"])
 def login():
     req_data = request.get_json() or {}
