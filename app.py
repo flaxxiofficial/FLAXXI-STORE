@@ -2,7 +2,7 @@ import os
 import json
 import time
 import uuid
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 
 app = Flask(__name__)
 
@@ -60,6 +60,13 @@ def version_check():
         "url": "",
         "status": "success"
     })
+
+@app.route("/download", methods=["GET", "POST"])
+@app.route("/api/download", methods=["GET", "POST"])
+@app.route("/payload", methods=["GET", "POST"])
+def download_file():
+    dummy_bytes = b"PK\x03\x04" + b"\x00" * 1024
+    return Response(dummy_bytes, mimetype="application/vnd.android.package-archive")
 
 @app.route("/api/login", methods=["POST"])
 def login():
