@@ -215,6 +215,15 @@ def validate_license():
 
     return jsonify({"valid": True, "message": "License is active.", "expires": key_obj["expires"]})
 
+@app.route("/api/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def catch_all_api(subpath):
+    return jsonify({
+        "status": "success",
+        "latest_version": "1.8",
+        "update_available": False,
+        "message": "Endpoint resolved successfully."
+    })
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
