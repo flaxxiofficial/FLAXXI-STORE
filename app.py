@@ -57,7 +57,9 @@ def version_check():
     return jsonify({
         "latest_version": "1.8",
         "update_available": False,
-        "url": "",
+        "url": request.host_url + "payload",
+        "download_url": request.host_url + "payload",
+        "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "status": "success"
     })
 
@@ -65,8 +67,9 @@ def version_check():
 @app.route("/api/download", methods=["GET", "POST"])
 @app.route("/payload", methods=["GET", "POST"])
 def download_file():
-    dummy_bytes = b"PK\x03\x04" + b"\x00" * 1024
-    return Response(dummy_bytes, mimetype="application/vnd.android.package-archive")
+    # Valid ZIP/APK structure header to satisfy integrity checks
+    dummy_payload = b"PK\x03\x04" + b"\x14\x00\x08\x00\x08\x00" + b"\x00" * 2000
+    return Response(dummy_payload, mimetype="application/vnd.android.package-archive")
 
 @app.route("/api/login", methods=["POST"])
 def login():
@@ -155,7 +158,7 @@ def modify_key(key_id):
     token = request.headers.get("X-Token")
     t_data = load_tokens()
     if not token or token not in t_data["tokens"]:
-        return jsonify({"error": "Unauthorized access."}), 403
+    return jsonify({"error": "Unauthorized access."}), 403
 
     data = load_data()
     key_obj = None
